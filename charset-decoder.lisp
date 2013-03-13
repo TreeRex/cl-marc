@@ -1,4 +1,8 @@
-;;;; -*- mode: Lisp; coding: utf-8; -*-
+;;;; charset-decoder.lisp  -*- mode: lisp; coding: utf-8; folded-file:t -*-
+;;;;
+;;;; Abstract character set decoder
+;;;; Author: temerson (Tom Emerson)
+;;;; Date: 2013-03-09
 
 ;;;; Copyright 2013 EBSCO Publishing
 ;;;;
@@ -14,18 +18,16 @@
 ;;;; See the License for the specific language governing permissions and
 ;;;; limitations under the License.
 
-(asdf:defsystem #:cl-marc
-  :serial t
-  :description "Utilities for processing Z39.2 / MARC format files"
-  :author "Tom Emerson <temerson@ebscohost.com>"
-  :license "Apache 2.0"
-  :encoding :utf-8
-  :depends-on (#:cl-ppcre)
-  :components ((:file "package")
-               (:file "utils")
-               (:file "charset-decoder")
-               (:file "marc-8-tables")
-               (:file "marc-8-decoder")
-               (:file "utf-8-decoder")
-               (:file "cl-marc")))
+(in-package #:cl-marc)
+
+;; FIXME: does this actually need to exist? Are there any slots that wil be
+;; common across decoders?
+
+(defclass charset-decoder ()
+  ()
+  (:documentation "Common base class for all charset decoders."))
+
+(defgeneric transcode-string (decoder byte-sequence)
+  (:documentation "Transcodes BYTE-SEQUENCE into a Unicode string using DECODER."))
+
 

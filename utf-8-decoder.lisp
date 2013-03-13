@@ -1,4 +1,8 @@
-;;;; -*- mode: Lisp; coding: utf-8; -*-
+;;;; utf-8-decoder.lisp  -*- mode: lisp; coding: utf-8; folded-file:t -*-
+;;;;
+;;;; UTF-8 Decoder
+;;;; Author: temerson (Tom Emerson)
+;;;; Date: 2013-03-09
 
 ;;;; Copyright 2013 EBSCO Publishing
 ;;;;
@@ -14,18 +18,14 @@
 ;;;; See the License for the specific language governing permissions and
 ;;;; limitations under the License.
 
-(asdf:defsystem #:cl-marc
-  :serial t
-  :description "Utilities for processing Z39.2 / MARC format files"
-  :author "Tom Emerson <temerson@ebscohost.com>"
-  :license "Apache 2.0"
-  :encoding :utf-8
-  :depends-on (#:cl-ppcre)
-  :components ((:file "package")
-               (:file "utils")
-               (:file "charset-decoder")
-               (:file "marc-8-tables")
-               (:file "marc-8-decoder")
-               (:file "utf-8-decoder")
-               (:file "cl-marc")))
+(in-package #:cl-marc)
 
+(defclass utf-8-decoder (charset-decoder)
+  ())
+
+(defmethod transcode-string ((decoder utf-8-decoder) s)
+  (declare (ignore decoder))
+  #+:openmcl
+  (ccl::decode-string-from-octets s :external-format :UTF-8)
+  #-:openmcl
+  (error "UTF-8 conversion TBD"))

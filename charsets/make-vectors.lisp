@@ -14,18 +14,17 @@
 ;;;; See the License for the specific language governing permissions and
 ;;;; limitations under the License.
 
-(asdf:defsystem #:cl-marc
-  :serial t
-  :description "Utilities for processing Z39.2 / MARC format files"
-  :author "Tom Emerson <temerson@ebscohost.com>"
-  :license "Apache 2.0"
-  :encoding :utf-8
-  :depends-on (#:cl-ppcre)
-  :components ((:file "package")
-               (:file "utils")
-               (:file "charset-decoder")
-               (:file "marc-8-tables")
-               (:file "marc-8-decoder")
-               (:file "utf-8-decoder")
-               (:file "cl-marc")))
+;;; this uses treerex-utils
 
+(defun create-gn-vector (filename base)
+  (flet ((from-hex (s) (parse-integer s :radix 16)))
+    (let ((previous (1- base)))
+      (tru:with-fields-in-file ((gn 0 #'from-hex)
+                                (ucs 1 #'from-hex))
+        (filename)
+        (when (>= gn base)
+          (when (/= gn (1+ previous))
+            (dotimes (i (- gn previous 1))
+              (format t "#\\U+FFFD ")))
+          (format t "#\\U+~4,'0X " ucs)
+          (setq previous gn))))))

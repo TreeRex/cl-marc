@@ -1,9 +1,10 @@
-;;;; -*- mode: Lisp; coding: utf-8; -*-
-
-;;;; cl-marc --- support for reading Z39.2 records
-;;;; Written by Tom Emerson, <temerson@ebscohost.com>
+;;;; cl-marc.lisp  -*- mode: lisp; coding: utf-8; folded-file:t -*-
 ;;;;
-;;;; Copyright 2010-2013 EBSCO Publishing
+;;;; Support for reading Z39.2 records
+;;;; Author: temerson (Tom Emerson)
+;;;; Date: 2013-03-08
+
+;;;; Copyright 2013 EBSCO Publishing
 ;;;;
 ;;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;;; you may not use this file except in compliance with the License.
@@ -22,9 +23,10 @@
 
 (in-package #:cl-marc)
 
-(defconstant +record-separator+ #\Gs)
+(defconstant +record-terminator+ #\Gs)
+(defconstant +field-terminator+ #\Rs)
 
-(defclass marc-record ()
+(defclass generic-record ()
   ((raw-record
     :initarg :raw-record
     :initform (error "raw-record must be supplied"))
@@ -32,26 +34,15 @@
    ;; a list: (tag len start)
    directory))
 
-(defun string->byte-array (s)
-  "Converts a string consisting of 8-bit bytes into a byte array"
-  (map '(simple-array (unsigned-byte 8) (*))
-       #'(lambda (x) (char-code x)) s))
+(defclass marc21-record (generic-record)
+  ())
 
-(defun utf8->string (s)
-  "Convert an array of UTF-8 bytes into a string"
-  #+:openmcl
-  (ccl::decode-string-from-octets s :external-format :UTF-8)
-  #-:openmcl
-  (error "Need to write a UTF-8 conversion function"))
+(defclass unimarc-record (generic-record)
+  ())
 
-(defun whitespace-p (c)
-  (or (char= c #\space)
-      (char= c #\return)
-      (char= c #\newline)
-      (char= c #\tab)))
+(defgeneric transcode-string (encoding byte-sequence)
+  (:documentation "Transcodes BYTE-SEQUENCE into a Unicode string using ENCODING."))
 
-(defmacro make-keyword (s)
-  `(intern ,s "KEYWORD"))
 
 (defun decode-directory-entry (entry)
   "Decode the 12 bytes in a directory entry"
@@ -65,10 +56,7 @@
        collect (decode-directory-entry
                 (subseq directory (* i 12) (+ (* i 12) 12)))))
 
-(defmethod character-coding-scheme ((record marc-record))
-  (char (slot-value record 'raw-record) 9))
-
-(defmethod initialize-instance :after ((record marc-record) &key)
+(defmethod initialize-instance :after ((record generic-record) &key)
   (let* ((base-address (parse-integer (slot-value record 'raw-record)
                                       :start 12 :end 17))
          (directory-length (/ (- base-address 25) 12)))
@@ -76,7 +64,7 @@
     (setf (slot-value record 'directory)
           (extract-directory (subseq (slot-value record 'raw-record) 24) directory-length))))
 
-(defmethod extract-raw-fields ((record marc-record) field-tag)
+(defmethod extract-raw-fields ((record generic-record) field-tag)
   "Extracts the raw contents of the field(s) specified by field-tag."
   (with-slots (raw-record base-address directory) record
     (flet ((get-field (length start)
@@ -85,15 +73,15 @@
       (loop for (tag length start) in directory
            if (eq field-tag tag) collect (get-field length start)))))
 
-(defmethod dump-directory ((record marc-record))
+(defmethod get-leader ((record generic-record))
+  (subseq (slot-value record 'raw-record) 0 24))
+
+(defmethod dump-directory ((record generic-record))
   (format t "~a:~%" (get-leader record))
   (dolist (entry (slot-value record 'directory))
     (format t "  ~S~%" (first entry))))
 
-(defmethod get-leader ((record marc-record))
-  (subseq (slot-value record 'raw-record) 0 24))
-
-(defmethod get-field ((record marc-record) field-id &optional subfield-id)
+(defmethod get-field ((record generic-record) field-id &optional subfield-id)
   "Returns the field (or fields) identified by field-id. The value of a
 control field is returned as a string: no interpretation is performed.
 Data fields are returned as a list of lists: each sublist contains the
@@ -118,7 +106,22 @@ The values are not processed in any way.
           (loop for raw-field in raw-fields
              collect (extract raw-field))))))
 
-(defmethod dump-unicode-field ((record marc-record) field-id)
+;;{{{ MARC-21
+
+(defmethod character-coding-scheme ((record marc21-record))
+  (let ((e (char (get-leader record) 9)))
+    (cond ((char= e #\Space) :marc8)
+          ((char= e #\a) :utf-8)
+          (t (error "Unknown character encoding scheme")))))
+
+(defmethod get-language ((record marc21-record))
+  (let ((control (get-field record :|008|)))
+    (when control (subseq control 35 38))))
+
+;;}}}
+
+
+(defmethod dump-unicode-field ((record generic-record) field-id)
   (loop for field in (get-field record field-id) do
        (format t "|~A|~%" (first field))
        ;; there is probably a way to do the following with a single format
@@ -131,7 +134,7 @@ The values are not processed in any way.
   "Return T if FIELD-ID is a control field, otherwise NIL."
   (< (parse-integer (string field-id)) 10))
 
-(defmethod dump-record ((record marc-record))
+(defmethod dump-record ((record generic-record))
   (format t "~a:~%" (get-leader record))
   (let ((seen '()))
     (dolist (entry (slot-value record 'directory))
@@ -146,7 +149,7 @@ The values are not processed in any way.
               (dump-unicode-field record (first entry))))))))
 
 
-(defun process-marc-file (filename func)
+(defun process-marc-file (filename func record-type)
   "Calls FUNC on each record in the specified FILENAME."
   (flet ((new-string ()
            (make-array 1024 :fill-pointer 0 :adjustable t :element-type 'character)))
@@ -158,31 +161,26 @@ The values are not processed in any way.
             ((null c)
              (when (> (length raw-record) 0)
                ;; process the last record we were building up when the file ended
-               (funcall func (make-instance 'marc-record :raw-record raw-record))
+               (funcall func (make-instance record-type :raw-record raw-record))
                (incf record-count)))
           (cond ((and ignore-whitespace-p (whitespace-p c)) t)
-                ((char= c +record-separator+)
-                 (progn
-                   (funcall func (make-instance 'marc-record :raw-record raw-record))
-                   (incf record-count)
-                   (setq raw-record (new-string))
-                   (setq ignore-whitespace-p t)))
-                (t (progn
-                     (vector-push-extend c raw-record 256)
-                     (setq ignore-whitespace-p nil)))))
+                ((char= c +record-terminator+)
+                 (funcall func (make-instance record-type :raw-record raw-record))
+                 (incf record-count)
+                 (setq raw-record (new-string))
+                 (setq ignore-whitespace-p t))
+                (t 
+                 (vector-push-extend c raw-record 256)
+                 (setq ignore-whitespace-p nil))))
         record-count))))
 
-(defun read-all-records-in-marc-file (filename)
+(defun read-all-records-in-marc-file (filename record-type)
   "Reads the specified MARC file, returning a list of MARC records"
   (let ((records '()))
-    (process-marc-file filename #'(lambda (x) (push x records)))
+    (process-marc-file filename #'(lambda (x) (push x records)) record-type)
     records))
 
-(defun get-language (record)
-  (let ((control (get-field record :|008|)))
-    (when control (subseq control 35 38))))
-
-(defun get-unicode-field (marc-record field subfield)
-  (let ((raw-value (cdadar (get-field marc-record field subfield))))
+(defun get-unicode-field (record field subfield)
+  (let ((raw-value (cdadar (get-field record field subfield))))
     (when raw-value
       (utf8->string (string->byte-array raw-value)))))
