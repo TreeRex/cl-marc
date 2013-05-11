@@ -21,7 +21,5 @@
   (:export #:process-marc-file
            #:read-all-records-in-marc-file
            #:get-leader
-           #:extract-raw-field
            #:get-language
-           #:get-field
-           #:get-unicode-field))
+           #:get-field))

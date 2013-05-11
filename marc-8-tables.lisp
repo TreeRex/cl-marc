@@ -20,9 +20,23 @@
 
 ;;;; http://www.loc.gov/marc/specifications/codetables.xml
 
+;; lookup based on a value in the range 0x20 - 0x7E, so the index into each
+;; table is (- c 0x20).
+
+;; Need to know if a particular c is combining or not. Use a bit vector.
+;; lookup will again be based on (- c 0x20)
+
+;; when we get a combining character, we start storing in an accumulator
+;; when we encounter a base character we need to know whether or not we
+;; should stop accumulating or continue. Once we've stopped accumulating,
+;; we need to convert the accumulated sequence. This will be similar for
+;; EACC, where we want to decode sequences of three octets.
+
+
+
 (in-package #:cl-marc)
 
-(defvar g0-ascii-mappings
+(defconstant +ascii-mappings+
   #(#\U+0020 #\U+0021 #\U+0022 #\U+0023 #\U+0024 #\U+0025 #\U+0026 #\U+0027
     #\U+0028 #\U+0029 #\U+002A #\U+002B #\U+002C #\U+002D #\U+002E #\U+002F
     #\U+0030 #\U+0031 #\U+0032 #\U+0033 #\U+0034 #\U+0035 #\U+0036 #\U+0037
@@ -36,7 +50,7 @@
     #\U+0070 #\U+0071 #\U+0072 #\U+0073 #\U+0074 #\U+0075 #\U+0076 #\U+0077
     #\U+0078 #\U+0079 #\U+007A #\U+007B #\U+007C #\U+007D #\U+007E))
 
-(defvar g1-ansel-mappings
+(defvar +ansel-mappings+
   #(#\U+FFFD #\U+0141 #\U+00D8 #\U+0110 #\U+00DE #\U+00C6 #\U+0152 #\U+02B9
     #\U+00B7 #\U+266D #\U+00AE #\U+00B1 #\U+01A0 #\U+01AF #\U+02BC #\U+FFFD
     #\U+02BB #\U+0142 #\U+00F8 #\U+0111 #\U+00FE #\U+00E6 #\U+0153 #\U+02BA

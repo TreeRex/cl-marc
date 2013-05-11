@@ -20,7 +20,8 @@
   :author "Tom Emerson <temerson@ebscohost.com>"
   :license "Apache 2.0"
   :encoding :utf-8
-  :depends-on (#:cl-ppcre)
+  ;; thank ${DEITY} for EdiWare.
+  :depends-on (#:cl-ppcre #:cl-ppcre-unicode #:cl-unicode #:cl-interpol)
   :components ((:file "package")
                (:file "utils")
                (:file "charset-decoder")

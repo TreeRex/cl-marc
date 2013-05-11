@@ -32,17 +32,14 @@
     :initform (error "raw-record must be supplied"))
    base-address
    ;; a list: (tag len start)
-   directory))
+   directory
+   (charset-decoder :accessor charset-decoder)))
 
 (defclass marc21-record (generic-record)
   ())
 
 (defclass unimarc-record (generic-record)
   ())
-
-(defgeneric transcode-string (encoding byte-sequence)
-  (:documentation "Transcodes BYTE-SEQUENCE into a Unicode string using ENCODING."))
-
 
 (defun decode-directory-entry (entry)
   "Decode the 12 bytes in a directory entry"
@@ -98,7 +95,9 @@ The values are not processed in any way.
                     collecting (when (or (null subfield-id)
                                          (string= subfield-id (subseq subfield 0 1)))
                                  (cons (make-keyword (subseq subfield 0 1))
-                                       (subseq subfield 1)))
+                                       (transcode-string (charset-decoder record)
+                                                         (string->byte-array (subseq subfield 1)))))
+
                         into subfields
                       ;; add the indicator to the start of the subfields
                       finally (return (cons (subseq field 0 2)
@@ -113,6 +112,20 @@ The values are not processed in any way.
     (cond ((char= e #\Space) :marc8)
           ((char= e #\a) :utf-8)
           (t (error "Unknown character encoding scheme")))))
+
+(defmethod initialize-instance :after ((record marc21-record) &key)
+  ;; for the UNAM data even when the leader says it's MARC-8 it looks to be UTF-8 (!)
+  ;; FIXME: we need a restart that lets the client define the decoder to use when
+  ;;        the leader has an invalid character at position 9.
+  ;; FIXME: need a way to override the decoder used for the records for cases like
+  ;;        we see with Thai where the leader encoding is bogus and the data is
+  ;;        actually encoded in TIS-620 or something similar.
+  (setf (charset-decoder record)
+        (let ((e (char (get-leader record) 9)))
+          (cond ((char= e #\Space) (make-instance 'utf-8-decoder))
+                ((char= e #\a) (make-instance 'utf-8-decoder))
+                ;; this is a bit of a hack, don't know if utf-8-decoder is right
+                (t (make-instance 'utf-8-decoder))))))
 
 (defmethod get-language ((record marc21-record))
   (let ((control (get-field record :|008|)))
@@ -153,7 +166,9 @@ The values are not processed in any way.
   "Calls FUNC on each record in the specified FILENAME."
   (flet ((new-string ()
            (make-array 1024 :fill-pointer 0 :adjustable t :element-type 'character)))
-    (with-open-file (stream filename)
+    ;; the file is read as ISO-8859-1 to prevent any character corruption when the
+    ;; file is transcoded to the implementation's (Unicode) internal string format.
+    (with-open-file (stream filename :direction :input :external-format :ISO-8859-1)
       (let ((raw-record (new-string))
             (ignore-whitespace-p t)
             (record-count 0))
@@ -180,7 +195,15 @@ The values are not processed in any way.
     (process-marc-file filename #'(lambda (x) (push x records)) record-type)
     records))
 
-(defun get-unicode-field (record field subfield)
-  (let ((raw-value (cdadar (get-field record field subfield))))
-    (when raw-value
-      (utf8->string (string->byte-array raw-value)))))
+(defun pointed-hebrew-title (record)
+  (let ((decoder (make-instance 'utf-8-decoder)))
+    (when (string= (get-language record) "heb")
+      (let ((transcoded (transcode-string decoder
+                                          (string->byte-array (cdadar (get-field record :|245| "a"))))))
+        (some (lambda (c) (string= (cl-unicode:general-category c) "Mn")) transcoded)))))
+
+(defun find-pointed-hebrew (filename)
+  (let ((records '()))
+    (process-marc-file filename (lambda (x) (when (pointed-hebrew-title x) (push x records))) 'marc21-record)
+    records))
+
