@@ -1,6 +1,6 @@
 ;;;; -*- mode: Lisp; coding: utf-8; -*-
 
-;;;; Copyright 2013 EBSCO Publishing
+;;;; Copyright 2013 EBSCO Information Services
 ;;;;
 ;;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;;; you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@
 (asdf:defsystem #:cl-marc
   :serial t
   :description "Utilities for processing Z39.2 / MARC format files"
-  :author "Tom Emerson <temerson@ebscohost.com>"
+  :author "Tom Emerson <temerson@ebsco.com>"
   :license "Apache 2.0"
   :encoding :utf-8
   ;; thank ${DEITY} for EdiWare.

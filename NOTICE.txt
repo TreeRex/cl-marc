@@ -1,4 +1,4 @@
 cl-marc - Common Lisp library for processing Z39.2 Records
-Copyright 2010-2013 EBSCO Publishing.
+Copyright 2010-2013 EBSCO Information Services.
 
-http://www.ebscohost.com/
+http://www.ebsco.com/

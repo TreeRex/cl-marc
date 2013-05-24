@@ -4,7 +4,7 @@
 ;;;; Author: temerson (Tom Emerson)
 ;;;; Date: 2013-03-08
 
-;;;; Copyright 2013 EBSCO Publishing
+;;;; Copyright 2013 EBSCO Information Services
 ;;;;
 ;;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;;; you may not use this file except in compliance with the License.
@@ -40,6 +40,14 @@
 
 (defclass unimarc-record (generic-record)
   ())
+
+(defclass cmarc-record (unimarc-record)
+  ()
+  (:documentation "A record using CMARC conventions."))
+
+(defclass cnmarc-record (unimarc-record)
+  ()
+  (:documentation "A record using CNMARC conventions."))
 
 (defun decode-directory-entry (entry)
   "Decode the 12 bytes in a directory entry"
@@ -133,6 +141,15 @@ The values are not processed in any way.
 
 ;;}}}
 
+;;{{{ CMARC
+
+(defmethod initialize-instance :after ((record cmarc-record) &key)
+  ;; for now (until I get around to fully implementing MARC-8, which is
+  ;; needed for CCCII support) I'll just use the identity decoder
+  (setf (charset-decoder record)
+        (make-instance 'charset-decoder)))
+
+;;}}}
 
 (defmethod dump-unicode-field ((record generic-record) field-id)
   (loop for field in (get-field record field-id) do

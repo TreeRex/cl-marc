@@ -4,7 +4,7 @@
 ;;;; Author: temerson (Tom Emerson)
 ;;;; Date: 2013-03-09
 
-;;;; Copyright 2013 EBSCO Publishing
+;;;; Copyright 2013 EBSCO Information Services
 ;;;;
 ;;;; Licensed under the Apache License, Version 2.0 (the "License");
 ;;;; you may not use this file except in compliance with the License.
@@ -28,6 +28,9 @@
   (:documentation "Common base class for all charset decoders."))
 
 (defgeneric transcode-string (decoder byte-sequence)
-  (:documentation "Transcodes BYTE-SEQUENCE into a Unicode string using DECODER."))
+  (:documentation "Transcodes BYTE-SEQUENCE into a Unicode string using DECODER.")
+  ;; identity-decoder: just convert the BYTE-SEQUENCE back to a string
+  (:method ((decoder charset-decoder) byte-sequence)
+    (coerce (loop for c across byte-sequence collecting (code-char c)) 'string)))
 
 
